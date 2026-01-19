@@ -1,0 +1,29 @@
+# Core Framework
+streamlit==1.31.0
+
+# LangChain & LangGraph
+langchain==0.2.0
+langchain-core==0.2.0
+langchain-google-genai==1.0.3
+langgraph==0.0.50
+
+# Google APIs
+google-api-python-client==2.120.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0
+google-auth==2.28.0
+
+# Database
+pymongo==4.6.1
+
+# AI Models
+google-generativeai==0.4.0
+
+# Environment & Config
+python-dotenv==1.0.1
+
+# Additional Dependencies
+pydantic==2.6.1
+typing-extensions==4.9.0
+httpx==0.26.0
+requests==2.31.0
