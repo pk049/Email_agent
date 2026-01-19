@@ -9,22 +9,37 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
 def get_google_oauth_flow():
     """Initialize Google OAuth flow"""
-    client_config = {
-        "web": {
-            "client_id": st.secrets["web_client"]["client_id"],
-            "client_secret": st.secrets["web_client"]["client_secret"],
-            "auth_uri": st.secrets["web_client"]["auth_uri"],
-            "token_uri": st.secrets["web_client"]["token_uri"],
-            "redirect_uris": [st.secrets["redirect_url"]]
+    try:
+        client_config = {
+            "web": {
+                "client_id": st.secrets["web_client"]["client_id"],
+                "client_secret": st.secrets["web_client"]["client_secret"],
+                "auth_uri": st.secrets["web_client"]["auth_uri"],
+                "token_uri": st.secrets["web_client"]["token_uri"],
+                "redirect_uris": [st.secrets["redirect_url"]]
+            }
         }
-    }
-    
-    flow = Flow.from_client_config(
-        client_config,
-        scopes=SCOPES,
-        redirect_uri=st.secrets["redirect_url"]
-    )
-    return flow
+        
+        flow = Flow.from_client_config(
+            client_config,
+            scopes=SCOPES,
+            redirect_uri=st.secrets["redirect_url"]
+        )
+        return flow
+    except KeyError as e:
+        st.error(f"Missing secret configuration: {e}")
+        st.info("Please add the following to your Streamlit secrets:")
+        st.code("""
+# Required secrets structure:
+redirect_url = "your-app-url"
+
+[web_client]
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+        """)
+        return None
 
 def show_login_button():
     """Display the Google login interface"""
@@ -33,6 +48,9 @@ def show_login_button():
     
     # Get authorization URL
     flow = get_google_oauth_flow()
+    if flow is None:
+        st.stop()
+    
     auth_url, _ = flow.authorization_url(prompt='consent')
     
     # Display login button
