@@ -46,7 +46,7 @@ ALL_TOOLS=EMAIL_TOOLS
 #   CONNECT TO MONGOD
 # ======================
 try:
-  mongo_uri=os.getenv('MONGODB_URI',"mongodb://localhost:27017")
+  mongo_uri=os.getenv('MONGODB_URI',"mongodb+srv://kumbharp049:hZUPCvKqZwhuekf7@cluster0.zit8svr.mongodb.net/")
   
   conn = MongoClient(mongo_uri)
   db = conn['newdb']

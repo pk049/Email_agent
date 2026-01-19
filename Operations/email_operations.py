@@ -1,68 +1,98 @@
 # ============================================================
-# OAUTH SETUP - REPLACE YOUR CURRENT OAUTH SECTION WITH THIS
+# GMAIL OPERATIONS - STREAMLIT CLOUD READY (NO TOKEN CACHING)
+# ============================================================
+
 import base64
 from email.mime.text import MIMEText
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import json
 from langchain_core.tools import tool
+import streamlit as st
 
-
-
-import os
-import pickle
-from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-
+# ============================================================
+# SCOPES
+# ============================================================
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/gmail.modify'
 ]
 
-TOKEN_PICKLE = 'token.pickle'
-CREDENTIALS_FILE = 'credentials.json'  # Your OAuth client credentials from Google Cloud Console
-
-flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-creds = flow.run_local_server(port=8080)
-service = build('gmail', 'v1', credentials=creds)
-
+# ============================================================
+# GMAIL SERVICE INITIALIZATION (SERVICE ACCOUNT METHOD)
+# ============================================================
 def get_gmail_service():
-    """Get authenticated Gmail service with token caching"""
-    creds = None
-    
-    # Check if token.pickle exists (saved credentials)
-    if os.path.exists(TOKEN_PICKLE):
-        with open(TOKEN_PICKLE, 'rb') as token:
-            creds = pickle.load(token)
-    
-    # If no valid credentials, authenticate
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            # Refresh expired token
-            creds.refresh(Request())
-        else:
-            # New authentication flow
-            flow = InstalledAppFlow.from_client_secrets_file(
-                CREDENTIALS_FILE, SCOPES)
-            creds = flow.run_local_server(port=8080)
+    """
+    Get authenticated Gmail service using Service Account from Streamlit secrets.
+    No token caching - creates fresh connection each time.
+    """
+    try:
+        # Get service account credentials from Streamlit secrets
+        credentials_info = dict(st.secrets["google_service_account"])
         
-        # Save credentials for next run
-        with open(TOKEN_PICKLE, 'wb') as token:
-            pickle.dump(creds, token)
+        # Create credentials from service account info
+        credentials = service_account.Credentials.from_service_account_info(
+            credentials_info,
+            scopes=SCOPES
+        )
+        
+        # If you need to impersonate a specific user (domain-wide delegation)
+        # Uncomment and set the user email:
+        # credentials = credentials.with_subject('user@yourdomain.com')
+        
+        # Build and return the Gmail service
+        service = build('gmail', 'v1', credentials=credentials)
+        return service
+        
+    except Exception as e:
+        st.error(f"❌ Gmail authentication failed: {e}")
+        st.info("💡 Make sure you've added 'google_service_account' to Streamlit secrets")
+        raise
+
+# ============================================================
+# ALTERNATIVE: OAUTH2 METHOD (For local development only)
+# ============================================================
+def get_gmail_service_oauth():
+    """
+    OAuth2 method for LOCAL DEVELOPMENT ONLY.
+    This will NOT work on Streamlit Cloud.
+    """
+    from google_auth_oauthlib.flow import InstalledAppFlow
     
-    return build('gmail', 'v1', credentials=creds)
+    try:
+        # Read credentials from Streamlit secrets (for local dev)
+        credentials_json = dict(st.secrets["google_oauth_credentials"])
+        
+        # Create flow
+        flow = InstalledAppFlow.from_client_config(
+            credentials_json,
+            SCOPES
+        )
+        
+        # Run local server (ONLY works locally)
+        creds = flow.run_local_server(port=8080)
+        
+        return build('gmail', 'v1', credentials=creds)
+        
+    except Exception as e:
+        st.error(f"❌ OAuth authentication failed: {e}")
+        raise
 
-
-
-# Initialize service
-# service = get_gmail_service()
-print("✅ Gmail service authenticated successfully!")
-
-
+# ============================================================
+# Initialize Gmail Service (Choose your method)
+# ============================================================
+try:
+    # For Streamlit Cloud: Use Service Account
+    service = get_gmail_service()
+    print("✅ Gmail service authenticated successfully (Service Account)")
+    
+except Exception as e:
+    print(f"⚠️ Gmail service initialization failed: {e}")
+    service = None
 
 # ============================================================
 # HELPER FUNCTIONS (Internal use)
@@ -70,27 +100,33 @@ print("✅ Gmail service authenticated successfully!")
 
 def _get_email_details(message_id: str) -> Dict:
     """Internal helper to get email details"""
-    message = service.users().messages().get(
-        userId='me',
-        id=message_id,
-        format='full'
-    ).execute()
+    if service is None:
+        return {'error': 'Gmail service not initialized'}
     
-    headers = message['payload']['headers']
-    subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
-    sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
-    date = next((h['value'] for h in headers if h['name'] == 'Date'), 'Unknown')
-    to = next((h['value'] for h in headers if h['name'] == 'To'), 'Unknown')
-    
-    return {
-        'id': message_id,
-        'subject': subject,
-        'from': sender,
-        'to': to,
-        'date': date,
-        'snippet': message.get('snippet', ''),
-        'thread_id': message.get('threadId', '')
-    }
+    try:
+        message = service.users().messages().get(
+            userId='me',
+            id=message_id,
+            format='full'
+        ).execute()
+        
+        headers = message['payload']['headers']
+        subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
+        sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
+        date = next((h['value'] for h in headers if h['name'] == 'Date'), 'Unknown')
+        to = next((h['value'] for h in headers if h['name'] == 'To'), 'Unknown')
+        
+        return {
+            'id': message_id,
+            'subject': subject,
+            'from': sender,
+            'to': to,
+            'date': date,
+            'snippet': message.get('snippet', ''),
+            'thread_id': message.get('threadId', '')
+        }
+    except Exception as e:
+        return {'error': str(e)}
 
 
 # ============================================================
@@ -99,6 +135,9 @@ def _get_email_details(message_id: str) -> Dict:
 
 def send_email(to: str, subject: str, body: str) -> Dict:
     """Send an email to a recipient."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         message = MIMEText(body)
         message['to'] = to
@@ -123,6 +162,9 @@ def send_email(to: str, subject: str, body: str) -> Dict:
 
 def get_recent_emails(max_results: int = 10, include_spam_trash: bool = False) -> Dict:
     """Get the most recent emails."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         max_results = min(max_results, 100)
         query = '' if include_spam_trash else '-in:spam -in:trash'
@@ -143,6 +185,9 @@ def get_recent_emails(max_results: int = 10, include_spam_trash: bool = False) -
 
 def search_emails(query: str, max_results: int = 50) -> Dict:
     """Search emails using Gmail query syntax."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         max_results = min(max_results, 100)
         
@@ -162,6 +207,9 @@ def search_emails(query: str, max_results: int = 50) -> Dict:
 
 def count_emails(query: str = "") -> Dict:
     """Count emails matching a query WITHOUT fetching full details."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         results = service.users().messages().list(
             userId='me',
@@ -182,6 +230,9 @@ def count_emails(query: str = "") -> Dict:
 
 def get_unread_emails(max_results: int = 20) -> Dict:
     """Get unread emails."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         max_results = min(max_results, 100)
         
@@ -201,6 +252,9 @@ def get_unread_emails(max_results: int = 20) -> Dict:
 
 def get_emails_from_sender(sender_email: str, max_results: int = 50) -> Dict:
     """Get all emails from a specific sender."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         max_results = min(max_results, 100)
         query = f'from:{sender_email}'
@@ -221,6 +275,9 @@ def get_emails_from_sender(sender_email: str, max_results: int = 50) -> Dict:
 
 def get_emails_by_date_range(start_date: str, end_date: str, max_results: int = 50) -> Dict:
     """Get emails within a date range."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         max_results = min(max_results, 100)
         start_date = start_date.replace('-', '/')
@@ -249,6 +306,9 @@ def get_emails_by_date_range(start_date: str, end_date: str, max_results: int = 
 
 def get_email_body(message_id: str) -> Dict:
     """Get the full body content of a specific email."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         message = service.users().messages().get(
             userId='me',
@@ -281,6 +341,9 @@ def get_email_body(message_id: str) -> Dict:
 
 def reply_to_email(message_id: str, reply_body: str) -> Dict:
     """Reply to a specific email."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         original = service.users().messages().get(
             userId='me',
@@ -322,6 +385,9 @@ def reply_to_email(message_id: str, reply_body: str) -> Dict:
 
 def mark_as_read(message_id: str) -> Dict:
     """Mark an email as read."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         service.users().messages().modify(
             userId='me',
@@ -340,6 +406,9 @@ def mark_as_read(message_id: str) -> Dict:
 
 def mark_as_unread(message_id: str) -> Dict:
     """Mark an email as unread."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         service.users().messages().modify(
             userId='me',
@@ -358,6 +427,9 @@ def mark_as_unread(message_id: str) -> Dict:
 
 def delete_email(message_id: str) -> Dict:
     """Move an email to trash."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         service.users().messages().trash(
             userId='me',
@@ -375,6 +447,9 @@ def delete_email(message_id: str) -> Dict:
 
 def get_email_labels() -> Dict:
     """Get all available Gmail labels."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         results = service.users().labels().list(userId='me').execute()
         labels = results.get('labels', [])
@@ -387,6 +462,9 @@ def get_email_labels() -> Dict:
 
 def add_label_to_email(message_id: str, label_id: str) -> Dict:
     """Add a label to an email."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         service.users().messages().modify(
             userId='me',
@@ -406,6 +484,9 @@ def add_label_to_email(message_id: str, label_id: str) -> Dict:
 
 def get_emails_with_attachments(max_results: int = 20) -> Dict:
     """Get emails that have attachments."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         max_results = min(max_results, 100)
         
@@ -425,6 +506,9 @@ def get_emails_with_attachments(max_results: int = 20) -> Dict:
 
 def get_starred_emails(max_results: int = 20) -> Dict:
     """Get starred/important emails."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         max_results = min(max_results, 100)
         
@@ -444,6 +528,9 @@ def get_starred_emails(max_results: int = 20) -> Dict:
 
 def get_inbox_stats() -> Dict:
     """Get statistics about the inbox."""
+    if service is None:
+        return {'success': False, 'error': 'Gmail service not initialized'}
+    
     try:
         total = count_emails("")['count']
         unread = count_emails("is:unread")['count']
@@ -625,7 +712,7 @@ def delete_email_tool(message_id: str) -> str:
 @tool
 def get_inbox_stats_tool() -> str:
     """Get comprehensive inbox statistics (total, unread, starred, etc.).
-    All counting done on machine, very fast.
+    All counting done on server, very fast.
     """
     result = get_inbox_stats()
     return json.dumps(result)
