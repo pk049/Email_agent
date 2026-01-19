@@ -1,6 +1,5 @@
-token.pickle
-credentials.json
+# Ignore Google Secret JSON files
+client_secret_*.json
 .env
 __pycache__/
 *.pyc
-.DS_Store

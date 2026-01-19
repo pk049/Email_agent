@@ -1,105 +1,112 @@
 import streamlit as st
-import google_auth_oauthlib.flow
-from googleapiclient.discovery import build
 import os
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
 
-# Scopes required for the agent to function
-SCOPES = [
-    'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/gmail.modify'
-]
+# Gmail API scopes
+SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+
+def get_google_oauth_flow():
+    """Initialize Google OAuth flow"""
+    client_config = {
+        "web": {
+            "client_id": st.secrets["web_client"]["client_id"],
+            "client_secret": st.secrets["web_client"]["client_secret"],
+            "auth_uri": st.secrets["web_client"]["auth_uri"],
+            "token_uri": st.secrets["web_client"]["token_uri"],
+            "redirect_uris": [st.secrets["redirect_url"]]
+        }
+    }
+    
+    flow = Flow.from_client_config(
+        client_config,
+        scopes=SCOPES,
+        redirect_uri=st.secrets["redirect_url"]
+    )
+    return flow
+
+def show_login_button():
+    """Display the Google login interface"""
+    st.title("📧 Email Agent - Login Required")
+    st.markdown("### Please sign in with your Google account to continue")
+    
+    # Get authorization URL
+    flow = get_google_oauth_flow()
+    auth_url, _ = flow.authorization_url(prompt='consent')
+    
+    # Display login button
+    st.markdown(f"""
+        <a href="{auth_url}" target="_self">
+            <button style="
+                background-color: #4285f4;
+                color: white;
+                padding: 12px 24px;
+                font-size: 16px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            ">
+                <img src="https://www.google.com/favicon.ico" width="20" height="20">
+                Sign in with Google
+            </button>
+        </a>
+    """, unsafe_allow_html=True)
+    
+    st.info("You'll be redirected to Google to authorize access to your Gmail account.")
 
 def authenticate_user():
     """
-    Handles the authentication flow.
-    Returns: True if the user is authenticated, False otherwise.
+    Handle Google OAuth authentication and return True if authenticated.
+    This function also handles the OAuth callback.
     """
-    # 1. Check if the user is already authenticated in this session
-    if "gmail_service" in st.session_state and st.session_state.gmail_service:
-        return True
-
-    # 2. Check if the user is returning from the Google Login page (URL has ?code=...)
-    if "code" in st.query_params:
-        code = st.query_params["code"]
+    # Check if we're handling an OAuth callback
+    query_params = st.query_params
+    
+    if "code" in query_params:
+        # User is coming back from Google OAuth
+        code = query_params["code"]
+        
         try:
-            # Retrieve client config from Streamlit secrets
-            client_config = st.secrets["web_client"]
-            
-            # Create the OAuth flow
-            flow = google_auth_oauthlib.flow.Flow.from_client_config(
-                client_config,
-                scopes=SCOPES,
-                redirect_uri=st.secrets["redirect_url"]
-            )
-            
-            # Exchange the authorization code for an access token
+            # Exchange authorization code for credentials
+            flow = get_google_oauth_flow()
             flow.fetch_token(code=code)
             credentials = flow.credentials
             
-            # Build the Gmail service for this specific user
-            service = build('gmail', 'v1', credentials=credentials)
+            # Store credentials in session state
+            st.session_state.credentials = {
+                'token': credentials.token,
+                'refresh_token': credentials.refresh_token,
+                'token_uri': credentials.token_uri,
+                'client_id': credentials.client_id,
+                'client_secret': credentials.client_secret,
+                'scopes': credentials.scopes
+            }
             
-            # Store the service in the session state
-            st.session_state.gmail_service = service
+            # Build Gmail service
+            creds = Credentials(
+                token=credentials.token,
+                refresh_token=credentials.refresh_token,
+                token_uri=credentials.token_uri,
+                client_id=credentials.client_id,
+                client_secret=credentials.client_secret,
+                scopes=credentials.scopes
+            )
+            st.session_state.gmail_service = build('gmail', 'v1', credentials=creds)
             
-            # Clear the query parameters to clean up the URL
+            # Clear the query parameters
             st.query_params.clear()
-            
-            return True
+            st.rerun()
             
         except Exception as e:
-            st.error(f"❌ Authentication failed: {e}")
+            st.error(f"Authentication failed: {str(e)}")
             return False
-
+    
+    # Check if user is already authenticated
+    if "credentials" in st.session_state and "gmail_service" in st.session_state:
+        return True
+    
     return False
-
-def show_login_button():
-    """Generates and displays the 'Sign in with Google' button."""
-    try:
-        client_config = st.secrets["web_client"]
-        
-        flow = google_auth_oauthlib.flow.Flow.from_client_config(
-            client_config,
-            scopes=SCOPES,
-            redirect_uri=st.secrets["redirect_url"]
-        )
-        
-        # Generate the authorization URL
-        auth_url, _ = flow.authorization_url(
-            access_type='offline',
-            include_granted_scopes='true',
-            prompt='consent'
-        )
-        
-        # Display a styled login button using HTML
-        st.markdown(
-            f"""
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 50vh;">
-                <h1 style="margin-bottom: 20px;">🤖 Agentic Email Assistant</h1>
-                <p style="margin-bottom: 30px; color: #666;">Please sign in to allow the AI to access your Gmail.</p>
-                <a href="{auth_url}" target="_self" style="text-decoration: none;">
-                    <button style="
-                        background-color: #4285F4; 
-                        color: white; 
-                        padding: 12px 24px; 
-                        border: none; 
-                        border-radius: 4px; 
-                        font-size: 16px; 
-                        font-weight: 500;
-                        cursor: pointer;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                        transition: background-color 0.3s;
-                    ">
-                        Sign in with Google
-                    </button>
-                </a>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-    except Exception as e:
-        st.error("⚠️ Error loading login configuration.")
-        st.info("Please ensure 'web_client' and 'redirect_url' are set in your Streamlit secrets.")
-        with st.expander("See Error Details"):
-            st.code(str(e))
