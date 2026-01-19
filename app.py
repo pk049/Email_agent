@@ -333,7 +333,7 @@ def interactive_mode():
                         for msg in reversed(new_messages):
                             if isinstance(msg, AIMessage):
                                 # Skip AI messages that only have tool_calls but no content
-                                if msg.content and msg.content.strip():
+                                if msg.content:
                                     final_ai_message = msg
                                     break
                         
