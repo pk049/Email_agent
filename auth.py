@@ -12,7 +12,7 @@ def get_google_oauth_flow():
     """Initialize Google OAuth flow"""
     try:
         # Get redirect URL and strip any whitespace
-        redirect_url = st.secrets.get("redirect_url", "").strip()
+        redirect_url = st.secrets.get("redirect_url")
         
         print(f"[DEBUG] Redirect URL from secrets: '{redirect_url}'")
         print(f"[DEBUG] Redirect URL length: {len(redirect_url)}")
