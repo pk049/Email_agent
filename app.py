@@ -74,7 +74,13 @@ def get_mongo_collection():
     """Connect to MongoDB for session storage."""
     try:
         print("[DEBUG] Attempting MongoDB connection...")
-        mongo_uri = os.getenv('MONGODB_URI') or st.secrets.get("MONGODB_URI")
+        # Try environment variable first, then Streamlit secrets
+        mongo_uri = os.getenv('MONGODB_URI')
+        if not mongo_uri:
+            try:
+                mongo_uri = st.secrets["MONGODB_URI"]
+            except (KeyError, FileNotFoundError):
+                pass
         
         if not mongo_uri:
             print("[DEBUG] No MongoDB URI found, skipping database")
@@ -136,7 +142,13 @@ print("[DEBUG] Setting up LangGraph agent...")
 
 try:
     # Initialize the LLM (Gemini 2.0)
-    api_key = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY")
+    # Try environment variable first, then Streamlit secrets
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        try:
+            api_key = st.secrets["GEMINI_API_KEY"]
+        except (KeyError, FileNotFoundError):
+            pass
     
     if not api_key:
         print("[ERROR] No Gemini API key found!")
