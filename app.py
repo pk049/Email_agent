@@ -134,6 +134,8 @@ def save_chat_to_db():
 # Save session when the script terminates
 atexit.register(save_chat_to_db)
 
+
+
 # ==============================================================================
 # 3. LANGGRAPH AGENT SETUP
 # ==============================================================================
@@ -148,7 +150,7 @@ try:
         try:
             api_key = st.secrets["GEMINI_API_KEY"]
         except (KeyError, FileNotFoundError):
-            pass
+            st.error("API KEY NOT FOUND")
     
     if not api_key:
         print("[ERROR] No Gemini API key found!")
