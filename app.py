@@ -154,7 +154,7 @@ try:
             st.error("API KEY NOT FOUND")
     
     if not api_key:
-        print(f"api key is {api_key}")
+        st.write(f"api key is {api_key}")
         print("[ERROR] No Gemini API key found!")
         st.error("❌ Gemini API key not configured. Please add GEMINI_API_KEY to your secrets.")
         st.stop()
