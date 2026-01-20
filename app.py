@@ -160,7 +160,7 @@ try:
     print(f"[DEBUG] Gemini API key found (first 10 chars): {api_key[:10]}...")
     
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash-exp", 
+        model="gemini-2.5-flash", 
         temperature=0.2, 
         api_key=api_key
     )
