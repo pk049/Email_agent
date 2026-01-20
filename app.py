@@ -145,7 +145,7 @@ print("[DEBUG] Setting up LangGraph agent...")
 try:
     # Initialize the LLM (Gemini 2.0)
     # Try environment variable first, then Streamlit secrets
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = ""
     if not api_key:
         try:
             api_key = st.secrets['GEMINI_API_KEY']
