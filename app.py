@@ -148,7 +148,7 @@ try:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         try:
-            api_key = "AIzaSyBFVBuHcZ-VfTpoengYKuF5x4DrIezYp7c"
+            api_key = st.secrets['GEMMINI_API_KEY']
         except (KeyError, FileNotFoundError):
             st.error("API KEY NOT FOUND")
     
