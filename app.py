@@ -147,7 +147,7 @@ try:
     # Try environment variable first, then Streamlit secrets
     api_key = None
     try:
-            api_key = st.secrets['GEMINI_API_KEY']
+            api_key = st.secrets["web_client"]['GEMINI_API_KEY']
             st.write(f"api key is {api_key}")
     except (KeyError, FileNotFoundError):
             st.error("API KEY NOT FOUND")
@@ -224,6 +224,9 @@ except Exception as e:
     print(f"[ERROR] Traceback: {traceback.format_exc()}")
     st.error(f"❌ Failed to initialize agent: {e}")
     st.stop()
+
+
+
 
 # ==============================================================================
 # 4. STREAMLIT UI & INTERACTION
